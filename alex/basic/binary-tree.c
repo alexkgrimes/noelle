@@ -83,7 +83,7 @@ main(int ac, char **av)
    struct worker_args *args, *targs, *hargs;
    int n, depth, mindepth, maxdepth, stretchdepth;
 
-   n = ac > 1 ? atoi(av[1]) : 10;
+   n = ac > 1 ? atoi(av[1]) : 20;
    if (n < 1) {
       fprintf(stderr, "Wrong argument.\n");
       exit(1);

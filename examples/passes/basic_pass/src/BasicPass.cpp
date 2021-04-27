@@ -4,10 +4,21 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "Noelle.hpp"
 
 using namespace llvm::noelle ;
+
+enum Allocator {
+  std_malloc, jemalloc, dlmalloc
+};
+
+static cl::opt<Allocator> SpecifiedAllocator(cl::desc("Specify which allocator to use."), 
+  cl::values(
+    clEnumVal(std_malloc , "Use malloc/free"),
+    clEnumVal(jemalloc, "Use jemalloc/jefree"),
+    clEnumVal(dlmalloc, "Use dlmalloc/dlfree"))));
 
 namespace {
 
@@ -39,19 +50,31 @@ namespace {
 
       PointerType* pointerType = PointerType::get(IntegerType::get(context, 8), 0);
 
-      FunctionCallee mallocFunc = M.getOrInsertFunction(
-        "jemalloc",                     // name of function
-        pointerType,                    // return type
-        Type::getInt64Ty(context)       // first parameter type
-      );
-      Value* malloc = mallocFunc.getCallee();
+      FunctionCallee mallocFunc;
+      FunctionCallee freeFunc;
 
-      FunctionCallee freeFunc = M.getOrInsertFunction(
-        "jefree",                     // name of function
-        Type::getVoidTy(context),     // return type
-        pointerType                   // first parameter type
-      );
-      Value* free = freeFunc.getCallee();
+      Value* malloc;
+      Value* free;
+
+      switch (SpecifiedAllocator) {
+        case std_malloc:
+          return false;
+        case jemalloc:
+          mallocFunc = M.getOrInsertFunction(
+            "jemalloc",                     // name of function
+            pointerType,                    // return type
+            Type::getInt64Ty(context)       // first parameter type
+          );
+          malloc = mallocFunc.getCallee();
+
+          freeFunc = M.getOrInsertFunction(
+            "jefree",                     // name of function
+            Type::getVoidTy(context),     // return type
+            pointerType                   // first parameter type
+          );
+          free = freeFunc.getCallee();
+          break;
+      }
 
       vector<Instruction*> instructionsToReplace;
 
@@ -105,7 +128,7 @@ namespace {
         ReplaceInstWithInst(inst->getParent()->getInstList(), ii, replacementInst);
       }
 
-      return false;
+      return true;
     }
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
