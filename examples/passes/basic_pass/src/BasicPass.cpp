@@ -18,7 +18,7 @@ static cl::opt<Allocator> SpecifiedAllocator(cl::desc("Specify which allocator t
   cl::values(
     clEnumVal(std_malloc , "Use malloc/free"),
     clEnumVal(jemalloc, "Use jemalloc/jefree"),
-    clEnumVal(dlmalloc, "Use dlmalloc/dlfree"))));
+    clEnumVal(dlmalloc, "Use dlmalloc/dlfree")));
 
 namespace {
 
@@ -59,22 +59,38 @@ namespace {
       switch (SpecifiedAllocator) {
         case std_malloc:
           return false;
+
         case jemalloc:
           mallocFunc = M.getOrInsertFunction(
             "jemalloc",                     // name of function
             pointerType,                    // return type
             Type::getInt64Ty(context)       // first parameter type
           );
-          malloc = mallocFunc.getCallee();
 
           freeFunc = M.getOrInsertFunction(
             "jefree",                     // name of function
             Type::getVoidTy(context),     // return type
             pointerType                   // first parameter type
           );
-          free = freeFunc.getCallee();
+          break;
+
+        case dlmalloc:
+          mallocFunc = M.getOrInsertFunction(
+            "dlmalloc",                     // name of function
+            pointerType,                    // return type
+            Type::getInt64Ty(context)       // first parameter type
+          );
+
+          freeFunc = M.getOrInsertFunction(
+            "dlfree",                     // name of function
+            Type::getVoidTy(context),     // return type
+            pointerType                   // first parameter type
+          );
           break;
       }
+
+      malloc = mallocFunc.getCallee();
+      free = freeFunc.getCallee();
 
       vector<Instruction*> instructionsToReplace;
 
@@ -115,7 +131,7 @@ namespace {
 
         CallInst* replacementInst;
         if (functionName == "malloc") {
-          replacementInst = CallInst::Create(malloc, ArrayRef<Value*>(args), "jemalloc");
+          replacementInst = CallInst::Create(malloc, ArrayRef<Value*>(args));
         }
 
         if (functionName == "free") {

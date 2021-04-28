@@ -2,7 +2,7 @@
 output="run/output.txt"
 rm $output
 touch $output
-echo "test_name, malloc_time, jemalloc_time" &> $output
+echo "test_name, malloc_time, jemalloc_time, dlmalloc_time" &> $output
 
 #go to tests folder
 cd ../../../alex/basic;
@@ -24,21 +24,29 @@ for filename in *.c; do
     output="output.txt";
 
     # compile to bitcode
-    clang -emit-llvm -o "$ex".bc -c ../../../../alex/basic/"$filename" -pthread;
+    clang -S -emit-llvm -o "$ex".ll ../../../../alex/basic/"$filename" -pthread;
 
-    # noelle
-    noelle-norm "$ex".bc -o "$ex".bc;   
-    noelle-load -load ~/CAT/lib/CAT.so -CAT -jemalloc "$ex".bc -o "$ex"-jemalloc.bc;
+    # noelle norm
+    noelle-norm "$ex".ll -o "$ex".ll;   
 
-    # create object file
-    llc -filetype=obj "$ex"-jemalloc.bc -o "$ex"-jemalloc.o;
+    # compile with jemalloc
+    noelle-load -S -load ~/CAT/lib/CAT.so -CAT -jemalloc "$ex".ll -o "$ex"-jemalloc.ll;
+    llc -filetype=obj "$ex"-jemalloc.ll -o "$ex"-jemalloc.o;
 
-    # link dependencies
     clang "$ex"-jemalloc.o -o "$ex"-jemalloc -I`jemalloc-config --includedir` \
     -L`jemalloc-config --libdir` -Wl,-rpath,`jemalloc-config --libdir` \
     -ljemalloc `jemalloc-config --libs`;
 
-    perf stat ./"$ex"-jemalloc 2>&1 >/dev/null | tail -n 6 | sed 's/ \+//' | sed 's/ / ,/' | head -n1 | sed -e 's/\s.*$//' >> $output
+    perf stat ./"$ex"-jemalloc 2>&1 >/dev/null | tail -n 6 | sed 's/ \+//' | sed 's/ /, /' | head -n1 | sed -e 's/\s.*$//' | awk '{printf("%s ", $0)}' >> $output
+
+    # compile with dlmalloc
+    noelle-load -S -load ~/CAT/lib/CAT.so -CAT -dlmalloc "$ex".ll -o "$ex"-dlmalloc.ll;
+    llc -filetype=obj "$ex"-dlmalloc.ll -o "$ex"-dlmalloc.o;
+
+    clang "$ex"-dlmalloc.o -o "$ex"-dlmalloc \
+    -L/home/akg434/noelle/alex/dlmalloc/lib/ -lmalloc -pthread
+
+    perf stat ./"$ex"-dlmalloc 2>&1 >/dev/null | tail -n 6 | sed 's/ \+//' | sed 's/ / ,/' | head -n1 | sed -e 's/\s.*$//' >> $output
 
     cd ../../../../alex/basic;
     output="../../examples/passes/basic_pass/run/output.txt"

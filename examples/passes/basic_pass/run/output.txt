@@ -1,4 +1,4 @@
-test_name, malloc_time, jemalloc_time
-big-alloc, 4.693506936, 10.459082585
-binary-tree, 2.958228637, 2.020668330
-book-test, 0.236590112, 0.106220729
+test_name, malloc_time, jemalloc_time, dlmalloc_time
+big-alloc, 5.333169720, 16.200954678, 18.854373354
+binary-tree, 2.834423555, 1.950273312, 1.110982026
+book-test, 0.222697785, 0.180140605, 0.252469435
