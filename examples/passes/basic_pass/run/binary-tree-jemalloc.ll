@@ -50,7 +50,7 @@ define dso_local i32 @main(i32, i8**) #0 {
   br label %24
 
 24:                                               ; preds = %23, %18
-  %25 = phi i32 [ %22, %18 ], [ 20, %23 ]
+  %25 = phi i32 [ %22, %18 ], [ 24, %23 ]
   store i32 %25, i32* %11, align 4
   %26 = load i32, i32* %11, align 4
   %27 = icmp slt i32 %26, 1

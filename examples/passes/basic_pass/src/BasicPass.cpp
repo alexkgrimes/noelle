@@ -7,8 +7,9 @@
 #include "llvm/Support/CommandLine.h"
 
 #include "Noelle.hpp"
+#include "Synthesizer.cpp"
 
-using namespace llvm::noelle ;
+using namespace llvm::noelle;
 
 enum Allocator {
   std_malloc, jemalloc, dlmalloc
@@ -44,59 +45,54 @@ namespace {
        * Use NOELLE
        */
       // auto insts = noelle.numberOfProgramInstructions();
-      // errs() << "The program has " << insts << " instructions\n";
 
-      LLVMContext &context = M.getContext();
+      bruteForceReplaceAlloc();
+
+      return true;
+    }
+
+    void bruteForceReplaceAlloc() {
+      LLVMContext &context = currentModule->getContext();
 
       PointerType* pointerType = PointerType::get(IntegerType::get(context, 8), 0);
 
-      FunctionCallee mallocFunc;
-      FunctionCallee freeFunc;
-
-      Value* malloc;
-      Value* free;
-
+      string mallocName;
+      string freeName;
       switch (SpecifiedAllocator) {
         case std_malloc:
-          return false;
+          return;
 
         case jemalloc:
-          mallocFunc = M.getOrInsertFunction(
-            "jemalloc",                     // name of function
-            pointerType,                    // return type
-            Type::getInt64Ty(context)       // first parameter type
-          );
-
-          freeFunc = M.getOrInsertFunction(
-            "jefree",                     // name of function
-            Type::getVoidTy(context),     // return type
-            pointerType                   // first parameter type
-          );
+          mallocName = "jemalloc";
+          freeName = "jefree";
           break;
 
         case dlmalloc:
-          mallocFunc = M.getOrInsertFunction(
-            "dlmalloc",                     // name of function
-            pointerType,                    // return type
-            Type::getInt64Ty(context)       // first parameter type
-          );
-
-          freeFunc = M.getOrInsertFunction(
-            "dlfree",                     // name of function
-            Type::getVoidTy(context),     // return type
-            pointerType                   // first parameter type
-          );
+          mallocName = "dlmalloc";
+          freeName = "dlfree";
           break;
       }
 
-      malloc = mallocFunc.getCallee();
-      free = freeFunc.getCallee();
+      FunctionCallee mallocFunc = currentModule->getOrInsertFunction(
+        mallocName,                     // name of function
+        pointerType,                    // return type
+        Type::getInt64Ty(context)       // first parameter type
+      );
+
+      FunctionCallee freeFunc = currentModule->getOrInsertFunction(
+        freeName,                     // name of function
+        Type::getVoidTy(context),     // return type
+        pointerType                   // first parameter type
+      );
+
+      Value* malloc = mallocFunc.getCallee();
+      Value* free = freeFunc.getCallee();
 
       vector<Instruction*> instructionsToReplace;
 
       errs() << "going through insts: \n";
 
-      for (auto &function : M) {
+      for (auto &function : *currentModule) {
         for (BasicBlock &bb : function) {
           for (Instruction &inst : bb) {
 
@@ -143,8 +139,6 @@ namespace {
 
         ReplaceInstWithInst(inst->getParent()->getInstList(), ii, replacementInst);
       }
-
-      return true;
     }
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
